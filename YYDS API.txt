@@ -1,0 +1,647 @@
+key：AC-29e9b09c5ae93e1347debb66
+
+API 文档
+YYDS Mail 提供面向外部集成的 RESTful API。当前文档按六个主题组织核心接入说明，并额外补充仍然公开可调用的查询接口。所有接口都以 /v1 为前缀。
+
+快速开始
+通过 GitHub 或 LinuxDo OAuth 在 /login 登录
+前往 API Key 管理 创建密钥
+在请求头中使用 X-API-Key 进行 API 调用
+bash
+
+curl https://maliapi.215.im/v1/accounts \
+  -X POST \
+  -H "X-API-Key: AC-your_api_key"
+基础 URL
+text
+
+https://maliapi.215.im/v1
+认证方式
+Bearer Token (JWT)
+通过 OAuth 登录获取的 JWT 访问令牌。
+
+Authorization: Bearer <access_token>
+API Key
+以 AC- 前缀开头的 API Key，适用于自动化调用；owner 侧 `/v1/me/domains\\\*` 和 `/v1/me/wildcard-rules\\\*` 管理入口要求 Bearer JWT。
+
+X-API-Key: AC-...
+临时 Token
+创建临时邮箱时返回的短期有效令牌。
+
+Authorization: Bearer <temp_token>
+公开查询接口
+以下接口仍属于公开可调用范围，适合在匿名查询、套餐展示、公开统计和文档发现中使用。
+
+text
+
+GET  /v1/domains
+GET  /v1/plans
+GET  /v1/pricing
+GET  /v1/domain-reward/config
+GET  /v1/stats
+
+临时邮箱 API
+创建一次性邮箱，无需注册。邮件在 24 小时后自动删除。
+
+POST
+/v1/accounts
+创建临时邮箱。既支持普通域名，也支持通过泛子域名创建真实子域邮箱。
+
+请求规则
+
+固定域名场景传 `domain`。
+泛子域名场景继续传 `domain`，再额外传一个可选的 `subdomain`。
+`localPart` 是推荐字段；旧字段 `address` 仍兼容。
+`subdomain` 省略时，`/v1/accounts` 保持固定域名语义；`/v1/accounts/wildcard` 会自动使用默认或随机子域。
+固定 `subdomain` 后，不同本地前缀可以复用同一个真实子域，只要最终邮箱地址不冲突即可。
+只有兼容旧脚本或高级排障时，才需要显式传 `wildcardRuleId` / `subdomainLabel`。普通脚本继续按 `domain + subdomain` 理解即可。
+创建成功后，后续 `POST /v1/token`、`GET /v1/messages`、`GET /v1/messages/{id}` 都必须使用接口返回的最终 `address`。
+如果通过 owner 侧接入自定义域名，默认 DNS 主流程只需要 `TXT + MX`；启用泛子域名时再补一条 `wildcard MX`，默认不需要额外 `CNAME`。
+认证: API Key / Bearer JWT / YYDS Mail 官方网页入口
+
+请求体
+json
+
+{
+  "localPart": "my-prefix",
+  "domain": "your-domain.com",
+  "subdomain": "optional"
+}
+响应
+json
+
+{
+  "success": true,
+  "data": {
+    "id": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+    "address": "my-prefix@example.com",
+    "mode": "fixed",
+    "domain": "example.com",
+    "subdomain": "",
+    "token": "eyJhbGciOiJIUzI1NiIs...",
+    "inboxType": "temp",
+    "source": "api",
+    "expiresAt": "2026-03-15T12: 00: 00Z",
+    "isActive": true,
+    "createdAt": "2026-03-14T12: 00: 00Z"
+  }
+}
+示例
+bash
+
+curl https://maliapi.215.im/v1/accounts \
+  -X POST \
+  -H "X-API-Key: AC-your-key" \
+  -H "Content-Type: application/json" \
+  -d '{"localPart":"my-prefix","domain":"public.example.com"}'
+普通域名示例
+json
+
+{
+  "localPart": "my-prefix",
+  "domain": "public.example.com"
+}
+泛子域名自动分配示例（推荐走 /v1/accounts/wildcard）
+json
+
+{
+  "localPart": "my-prefix",
+  "domain": "public.example.com"
+}
+泛子域名默认配置示例
+json
+
+{
+  "localPart": "my-prefix"
+}
+泛子域名固定子域示例
+json
+
+{
+  "localPart": "my-prefix",
+  "domain": "public.example.com",
+  "subdomain": "team-a"
+}
+POST
+/v1/accounts/wildcard
+创建临时邮箱。既支持普通域名，也支持通过泛子域名创建真实子域邮箱。
+
+泛子域名场景继续传 `domain`，再额外传一个可选的 `subdomain`。
+
+认证: API Key / Bearer JWT / YYDS Mail 官方网页入口
+
+请求体
+json
+
+{
+  "localPart": "my-prefix",
+  "domain": "public.example.com",
+  "subdomain": "optional"
+}
+响应
+json
+
+{
+  "success": true,
+  "data": {
+    "id": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+    "address": "my-prefix@mail.example.com",
+    "mode": "wildcard",
+    "domain": "mail.example.com",
+    "subdomain": "mail",
+    "token": "eyJhbGciOiJIUzI1NiIs...",
+    "inboxType": "temp",
+    "source": "api",
+    "expiresAt": "2026-03-15T12: 00: 00Z",
+    "isActive": true,
+    "createdAt": "2026-03-14T12: 00: 00Z"
+  }
+}
+示例
+bash
+
+curl https://maliapi.215.im/v1/accounts/wildcard \
+  -X POST \
+  -H "X-API-Key: AC-your-key" \
+  -H "Content-Type: application/json" \
+  -d '{"localPart":"my-prefix","domain":"public.example.com","subdomain":"team-a"}'
+POST
+/v1/token
+刷新当前活动临时邮箱的访问令牌。必须携带该邮箱当前仍有效的临时令牌；它不是无密码登录接口。
+认证: 临时 Token（同一邮箱）
+
+请求体
+json
+
+{
+  "address": "k7xm2pa9bf@public.example.com"
+}
+响应
+json
+
+{
+  "success": true,
+  "data": {
+    "id": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+    "address": "k7xm2pa9bf@public.example.com",
+    "token": "eyJhbGciOiJIUzI1NiIs..."
+  }
+}
+示例
+bash
+
+curl https://maliapi.215.im/v1/token \
+  -X POST \
+  -H "Authorization: Bearer <temp_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"address":"k7xm2pa9bf@public.example.com"}'
+后续继续使用最终 address 刷新 token
+json
+
+{
+  "address": "my-prefix@mail.team-a.example.com"
+}
+GET
+/v1/accounts/me
+获取当前临时账号信息。
+认证: 临时 Token
+
+响应
+json
+
+{
+  "success": true,
+  "data": {
+    "id": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+    "address": "k7xm2pa9bf@public.example.com",
+    "inboxType": "temp",
+    "source": "web",
+    "expiresAt": "2026-03-15T12: 00: 00Z",
+    "isActive": true,
+    "messageCount": 3,
+    "createdAt": "2026-03-14T12: 00: 00Z"
+  }
+}
+示例
+bash
+
+curl https://maliapi.215.im/v1/accounts/me \
+  -H "Authorization: Bearer <temp_token>"
+GET
+/v1/accounts/{id}
+根据 ID 获取临时账号详情。
+认证: 临时 Token / API Key / Bearer JWT
+
+请求参数
+参数	类型	必填	说明
+id	string	是	临时邮箱 ID
+响应
+json
+
+{
+  "success": true,
+  "data": {
+    "id": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+    "address": "k7xm2pa9bf@public.example.com",
+    "inboxType": "temp",
+    "source": "api",
+    "expiresAt": "2026-03-15T12: 00: 00Z",
+    "isActive": true,
+    "messageCount": 0,
+    "createdAt": "2026-03-14T12: 00: 00Z"
+  }
+}
+示例
+bash
+
+curl https://maliapi.215.im/v1/accounts/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4 \
+  -H "Authorization: Bearer <temp_token>"
+DELETE
+/v1/accounts/{id}
+停用临时邮箱。持久邮箱删除请使用 `/v1/me/inboxes/{id}`。
+认证: 临时 Token
+
+请求参数
+参数	类型	必填	说明
+id	string	是	临时邮箱 ID
+响应
+json
+
+204 No Content
+示例
+bash
+
+curl https://maliapi.215.im/v1/accounts/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4 \
+  -X DELETE \
+  -H "Authorization: Bearer <temp_token>"
+ 
+
+
+消息管理
+读取、管理和删除邮件消息。支持临时 Token、API Key 或 JWT 认证。
+
+GET
+/v1/messages
+列出当前邮箱的消息。JWT 和 API Key 请求必须显式传 `?address=xxx`。如果邮箱是通过泛子域自动分配得到的，这里必须填写创建接口返回的最终 `address`，不能只写前缀或规则域名。
+认证: 临时 Token / API Key / Bearer JWT
+
+请求参数
+参数	类型	必填	说明
+address	string	否	邮箱地址（查询参数，JWT / API Key 用户必填）
+limit	number	否	返回消息数量上限（默认：50）
+响应
+json
+
+{
+  "success": true,
+  "data": {
+    "messages": [
+      {
+        "id": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+        "inbox_id": "f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3",
+        "inboxId": "f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3",
+        "from": { "name": "Sender", "address": "sender@example.com" },
+        "to": [{ "name": "", "address": "k7xm2pa9bf@public.example.com" }],
+        "subject": "Welcome!",
+        "seen": false,
+        "hasAttachments": false,
+        "size": 1234,
+        "createdAt": "2026-03-14T12: 30: 00Z"
+      }
+    ],
+    "total": 1,
+    "unreadCount": 1
+  }
+}
+示例
+bash
+
+curl "https://maliapi.215.im/v1/messages?address=k7xm2pa9bf@public.example.com" \
+  -H "Authorization: Bearer <token>"
+后续查询邮件时使用创建返回的最终 address
+bash
+
+# 创建邮箱后请保存返回值里的 address
+curl "https://maliapi.215.im/v1/messages?address=my-prefix@mail.team-a.example.com" \
+  -H "Authorization: Bearer <token>"
+POST
+/v1/messages/mark-read
+将当前邮箱里的所有邮件标记为已读。
+认证: 临时 Token / API Key（写）/ Bearer JWT
+
+请求参数
+参数	类型	必填	说明
+address	string	否	邮箱地址（查询参数，JWT / API Key 用户必填）
+响应
+json
+
+{
+  "success": true,
+  "data": {
+    "mailbox": "k7xm2pa9bf@public.example.com",
+    "updated": 3,
+    "alreadySeen": 1,
+    "total": 4
+  }
+}
+示例
+bash
+
+curl "https://maliapi.215.im/v1/messages/mark-read?address=k7xm2pa9bf@public.example.com" \
+  -X POST \
+  -H "Authorization: Bearer <token>"
+GET
+/v1/messages/{id}
+获取完整邮件详情，包括正文、HTML 和附件信息。
+认证: 临时 Token / API Key / Bearer JWT
+
+请求参数
+参数	类型	必填	说明
+id	string	是	邮件 ID
+address	string	否	邮箱地址（查询参数，JWT / API Key 用户必填）
+响应
+json
+
+{
+  "success": true,
+  "data": {
+    "id": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+    "from": { "name": "Sender", "address": "sender@example.com" },
+    "to": [{ "name": "", "address": "k7xm2pa9bf@public.example.com" }],
+    "subject": "Welcome!",
+    "text": "Hello, this is a test email.",
+    "html": ["<p>Hello, this is a test email.</p>"],
+    "seen": true,
+    "hasAttachments": true,
+    "size": 1234,
+    "createdAt": "2026-03-14T12: 30: 00Z",
+    "attachments": [
+      {
+        "id": "0",
+        "filename": "welcome.pdf",
+        "contentType": "application/pdf",
+        "size": 2048,
+        "downloadUrl": "/serve/mailbox/demo/message/attach/0/welcome.pdf"
+      }
+    ]
+  }
+}
+示例
+bash
+
+curl "https://maliapi.215.im/v1/messages/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4?address=k7xm2pa9bf@public.example.com" \
+  -H "Authorization: Bearer <token>"
+PATCH
+/v1/messages/{id}
+将邮件标记为已读。
+认证: 临时 Token / API Key（写）/ Bearer JWT
+
+请求参数
+参数	类型	必填	说明
+id	string	是	邮件 ID
+address	string	否	邮箱地址（查询参数，JWT / API Key 用户必填）
+请求体
+json
+
+{
+  "seen": true
+}
+响应
+json
+
+{
+  "success": true,
+  "data": {
+    "id": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+    "seen": true
+  }
+}
+示例
+bash
+
+curl "https://maliapi.215.im/v1/messages/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4?address=k7xm2pa9bf@public.example.com" \
+  -X PATCH \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"seen":true}'
+DELETE
+/v1/messages/{id}
+删除邮件。
+认证: 临时 Token / API Key（写）/ Bearer JWT
+
+请求参数
+参数	类型	必填	说明
+id	string	是	邮件 ID
+address	string	否	邮箱地址（查询参数，JWT / API Key 用户必填）
+响应
+json
+
+204 No Content
+示例
+bash
+
+curl "https://maliapi.215.im/v1/messages/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4?address=k7xm2pa9bf@public.example.com" \
+  -X DELETE \
+  -H "Authorization: Bearer <token>"
+GET
+/v1/sources/{id}
+获取邮件原始源码（RFC 822）。
+认证: 临时 Token / API Key / Bearer JWT
+
+请求参数
+参数	类型	必填	说明
+id	string	是	邮件 ID
+address	string	否	邮箱地址（查询参数，JWT / API Key 用户必填）
+响应
+json
+
+{
+  "success": true,
+  "data": {
+    "id": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+    "data": "Return-Path: sender@example.com\r\nFrom: Sender sender@example.com\r\nTo: k7xm2pa9bf@public.example.com\r\nSubject: Welcome!\r\n..."
+  }
+}
+示例
+bash
+
+curl "https://maliapi.215.im/v1/sources/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4?address=k7xm2pa9bf@public.example.com" \
+  -H "Authorization: Bearer <token>"
+
+
+Webhook 管理
+设置 Webhook 以在事件发生时接收实时 HTTP 通知。
+
+GET
+/v1/me/webhooks
+列出当前用户的所有 Webhook。
+认证: Bearer Token / API Key
+
+响应
+json
+
+{
+  "success": true,
+  "data": {
+    "webhooks": [
+      {
+        "id": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+        "userId": "u_123",
+        "url": "https://example.com/hook",
+        "events": ["message.received", "message.deleted"],
+        "isActive": true,
+        "createdAt": "2026-03-14T12: 00: 00Z",
+        "updatedAt": "2026-03-14T12: 00: 00Z"
+      }
+    ],
+    "total": 1
+  }
+}
+示例
+bash
+
+curl https://maliapi.215.im/v1/me/webhooks \
+  -H "Authorization: Bearer <token>"
+POST
+/v1/me/webhooks
+创建新的 Webhook 订阅。
+认证: Bearer JWT
+
+请求体
+json
+
+{
+  "url": "https://example.com/hook",
+  "events": ["message.received", "message.deleted"],
+  "secret": "signing-secret"
+}
+响应
+json
+
+{
+  "success": true,
+  "data": {
+    "id": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+    "userId": "u_123",
+    "url": "https://example.com/hook",
+    "events": ["message.received", "message.deleted"],
+    "secret": "signing-secret",
+    "isActive": true,
+    "createdAt": "2026-03-14T12: 00: 00Z",
+    "updatedAt": "2026-03-14T12: 00: 00Z"
+  }
+}
+示例
+bash
+
+curl https://maliapi.215.im/v1/me/webhooks \
+  -X POST \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com/hook class="code-string">","events":["message.received","message.deleted"],"secret":"signing-secret"}'
+DELETE
+/v1/me/webhooks/{id}
+删除 Webhook。删除后将停止接收通知。
+认证: Bearer JWT
+
+请求参数
+参数	类型	必填	说明
+id	string	是	Webhook ID
+响应
+json
+
+204 No Content
+示例
+bash
+
+curl https://maliapi.215.im/v1/me/webhooks/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4 \
+  -X DELETE \
+  -H "Authorization: Bearer <token>"
+PATCH
+/v1/me/webhooks/{id}
+更新 Webhook 的 URL、事件类型或启用状态。需要 JWT 登录（API Key 无法修改 Webhook）。
+认证: Bearer JWT
+
+请求参数
+参数	类型	必填	说明
+id	string	是	Webhook ID
+请求体
+json
+
+{
+  "url": "https://new-endpoint.example.com/hook",
+  "events": ["message.received", "message.deleted"],
+  "isActive": false
+}
+响应
+json
+
+{
+  "success": true,
+  "data": {
+    "id": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+    "userId": "u_123",
+    "url": "https://new-endpoint.example.com/hook",
+    "events": ["message.received", "message.deleted"],
+    "isActive": false,
+    "createdAt": "2026-03-14T12: 00: 00Z",
+    "updatedAt": "2026-03-21T08: 00: 00Z"
+  }
+}
+示例
+bash
+
+curl https://maliapi.215.im/v1/me/webhooks/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4 \
+  -X PATCH \
+  -H "Authorization: Bearer <jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://new-endpoint.example.com/hook class="code-string">","isActive":false}'
+POST
+/v1/me/webhooks/{id}/test
+向 Webhook URL 发送测试事件并检查连通性。返回状态码和延迟。需要 JWT 登录。
+认证: Bearer JWT
+
+请求参数
+参数	类型	必填	说明
+id	string	是	Webhook ID
+响应
+json
+
+{
+  "success": true,
+  "data": {
+    "success": true,
+    "statusCode": 200,
+    "latencyMs": 156
+  }
+}
+示例
+bash
+
+curl https://maliapi.215.im/v1/me/webhooks/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4/test \
+  -X POST \
+  -H "Authorization: Bearer <jwt>"
+POST
+/v1/me/webhooks/{id}/regenerate-secret
+重新生成 Webhook 签名密钥。新密钥仅显示一次，旧密钥立即失效。需要 JWT 登录。
+认证: Bearer JWT
+
+请求参数
+参数	类型	必填	说明
+id	string	是	Webhook ID
+响应
+json
+
+{
+  "success": true,
+  "data": {
+    "webhookId": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+    "secret": "e3b0c44298fc1c149afbf4c8996fb924..."
+  }
+}
+示例
+bash
+
+curl https://maliapi.215.im/v1/me/webhooks/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4/regenerate-secret \
+  -X POST \
+  -H "Authorization: Bearer <jwt>"
